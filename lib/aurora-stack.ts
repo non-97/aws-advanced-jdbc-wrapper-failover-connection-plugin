@@ -1,16 +1,25 @@
-import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as cdk from "aws-cdk-lib";
+import { Construct } from "constructs";
+import { Vpc } from "./constructs/vpc";
+import { Ec2Instance } from "./constructs/ec2-instance";
+import { Aurora } from "./constructs/aurora";
 
 export class AuroraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
+    // VPC
+    const vpc = new Vpc(this, "Vpc");
 
-    // example resource
-    // const queue = new sqs.Queue(this, 'AuroraQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    const ec2Instance = new Ec2Instance(this, "Ec2Instance", {
+      vpc: vpc.vpc,
+      securityGroup: vpc.dbClientSg,
+    });
+
+    // Aurora
+    const aurora = new Aurora(this, "Aurora", {
+      vpc: vpc.vpc,
+      securityGroup: vpc.dbServerSg,
+    });
   }
 }
