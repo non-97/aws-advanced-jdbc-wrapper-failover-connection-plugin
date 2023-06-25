@@ -98,6 +98,20 @@ export class Aurora extends Construct {
           publiclyAccessible: false,
           instanceIdentifier: "db-instance-b",
         }),
+        cdk.aws_rds.ClusterInstance.provisioned("InstanceC", {
+          instanceType: cdk.aws_ec2.InstanceType.of(
+            cdk.aws_ec2.InstanceClass.T4G,
+            cdk.aws_ec2.InstanceSize.MEDIUM
+          ),
+          allowMajorVersionUpgrade: false,
+          autoMinorVersionUpgrade: true,
+          enablePerformanceInsights: true,
+          parameterGroup: dbParameterGroup,
+          performanceInsightRetention:
+            cdk.aws_rds.PerformanceInsightRetention.DEFAULT,
+          publiclyAccessible: false,
+          instanceIdentifier: "db-instance-c",
+        }),
       ],
       backup: {
         retention: cdk.Duration.days(7),
