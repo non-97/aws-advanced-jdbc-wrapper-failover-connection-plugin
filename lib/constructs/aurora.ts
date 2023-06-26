@@ -3,7 +3,8 @@ import { Construct } from "constructs";
 
 export interface AuroraProps {
   vpc: cdk.aws_ec2.IVpc;
-  securityGroup: cdk.aws_ec2.ISecurityGroup;
+  dbClusterSg: cdk.aws_ec2.ISecurityGroup;
+  rdsProxySg: cdk.aws_ec2.ISecurityGroup;
 }
 
 export class Aurora extends Construct {
@@ -144,7 +145,7 @@ export class Aurora extends Construct {
       preferredMaintenanceWindow: "Sat:17:00-Sat:17:30",
       storageEncrypted: true,
       vpc: props.vpc,
-      securityGroups: [props.securityGroup],
+      securityGroups: [props.dbClusterSg],
       subnetGroup,
     });
 
@@ -156,6 +157,10 @@ export class Aurora extends Construct {
     cfnDbCluster.addPropertyDeletionOverride("MasterUserPassword");
     dbCluster.node.tryRemoveChild("Secret");
 
+    const masterUserSecretArn = cfnDbCluster
+      .getAtt("MasterUserSecret.SecretArn")
+      .toString();
+
     // CA
     dbCluster.node.children.forEach((children) => {
       if (children.node.defaultChild instanceof cdk.aws_rds.CfnDBInstance) {
@@ -164,5 +169,50 @@ export class Aurora extends Construct {
         ).addPropertyOverride("CACertificateIdentifier", "rds-ca-rsa4096-g1");
       }
     });
+
+    // RDS Proxy Role
+    const proxyRole = new cdk.aws_iam.Role(this, "ProxyRole", {
+      assumedBy: new cdk.aws_iam.ServicePrincipal("rds.amazonaws.com"),
+      managedPolicies: [
+        new cdk.aws_iam.ManagedPolicy(this, "Get Secret Value Policy", {
+          statements: [
+            new cdk.aws_iam.PolicyStatement({
+              effect: cdk.aws_iam.Effect.ALLOW,
+              resources: [masterUserSecretArn],
+              actions: [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    // RDS Proxy
+    const rdsProxy = new cdk.aws_rds.DatabaseProxy(this, "RdsProxy", {
+      proxyTarget: cdk.aws_rds.ProxyTarget.fromCluster(dbCluster),
+      secrets: [dbCluster.secret!],
+      vpc: props.vpc,
+      dbProxyName: "db-proxy",
+      debugLogging: true,
+      requireTLS: false,
+      securityGroups: [props.rdsProxySg],
+      vpcSubnets: props.vpc.selectSubnets({
+        onePerAz: true,
+        subnetType: cdk.aws_ec2.SubnetType.PRIVATE_ISOLATED,
+      }),
+      role: proxyRole,
+    });
+    proxyRole.node.tryRemoveChild("DefaultPolicy");
+
+    const cfnRdsProxy = rdsProxy.node.defaultChild as cdk.aws_rds.CfnDBProxy;
+    cfnRdsProxy.auth = [
+      {
+        authScheme: "SECRETS",
+        iamAuth: "DISABLED",
+        secretArn: masterUserSecretArn,
+      },
+    ];
   }
 }

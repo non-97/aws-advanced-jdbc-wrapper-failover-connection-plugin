@@ -7,6 +7,7 @@ export class Vpc extends Construct {
   readonly vpc: cdk.aws_ec2.IVpc;
   readonly dbClientSg: cdk.aws_ec2.ISecurityGroup;
   readonly dbServerSg: cdk.aws_ec2.ISecurityGroup;
+  readonly rdsProxySg: cdk.aws_ec2.ISecurityGroup;
 
   constructor(scope: Construct, id: string, props?: VpcProps) {
     super(scope, id);
@@ -44,7 +45,18 @@ export class Vpc extends Construct {
     this.dbServerSg = new cdk.aws_ec2.SecurityGroup(this, "Db Server Sg", {
       vpc: this.vpc,
     });
+    this.rdsProxySg = new cdk.aws_ec2.SecurityGroup(this, "Rds Proxy Sg", {
+      vpc: this.vpc,
+    });
     this.dbServerSg.addIngressRule(
+      cdk.aws_ec2.Peer.securityGroupId(this.dbClientSg.securityGroupId),
+      cdk.aws_ec2.Port.tcp(5432)
+    );
+    this.dbServerSg.addIngressRule(
+      cdk.aws_ec2.Peer.securityGroupId(this.rdsProxySg.securityGroupId),
+      cdk.aws_ec2.Port.tcp(5432)
+    );
+    this.rdsProxySg.addIngressRule(
       cdk.aws_ec2.Peer.securityGroupId(this.dbClientSg.securityGroupId),
       cdk.aws_ec2.Port.tcp(5432)
     );

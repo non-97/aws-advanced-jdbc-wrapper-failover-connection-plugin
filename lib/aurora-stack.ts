@@ -19,7 +19,8 @@ export class AuroraStack extends cdk.Stack {
     // Aurora
     const aurora = new Aurora(this, "Aurora", {
       vpc: vpc.vpc,
-      securityGroup: vpc.dbServerSg,
+      dbClusterSg: vpc.dbServerSg,
+      rdsProxySg: vpc.dbServerSg,
     });
   }
 }
